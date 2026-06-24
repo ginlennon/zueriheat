@@ -1,106 +1,127 @@
-# Hitzekarte Zürich – zoombare Überlagerung
+# 🌡️🌳 Züriheat — Zürichs Hitze & die kühlenden Bäume
 
-**🌡️ Live-Demo: https://ginlennon.github.io/zueriheat/**
+**🚀 Live-Demo: https://ginlennon.github.io/zueriheat/**
 
-Eine selbstständige Webseite, die die Zürcher Hitzekarte ("Gefühlte Temperatur")
-zoombar über eine offene Strassenkarte legt.
+> Eine kleine, eigenständige Webseite, die Zürichs **Hitzekarte** («Gefühlte
+> Temperatur») zoombar über eine offene Strassenkarte legt — und mit dem
+> **Baumkataster** der Stadt verbindet, um zu fragen: 🌳 *Wo ist es heiss, wo kühl,
+> und welche Bäume spenden den besten Schatten?*
 
-## Benutzung
-- Öffne `index.html` (Doppelklick, oder über einen lokalen Server). Internet wird
-  nur für die Kartenkacheln und die Leaflet-Bibliothek (CDN) benötigt.
-- **Deckkraft**: Schieberegler regelt die Transparenz der Hitzekarte.
-- **Nur Hitze / Mit Relief**: schaltet zwischen der freigestellten Hitze-Ebene
-  (Strassen scheinen durch) und dem Originalbild inkl. Reliefschattierung um.
-- **Grundkarte** (oben rechts): CARTO hell, OpenStreetMap, swisstopo Farbe/Grau,
-  Esri-Satellit.
-- **Ausrichten**: zeigt Ziehgriffe, um die Hitzekarte pixelgenau auf die Strassen
-  zu schieben/skalieren. Eck-Griffe = Grösse, gestrichelter Griff = verschieben.
-  Die Ausrichtung wird im Browser (localStorage) gespeichert; **Zurücksetzen**
-  stellt die Standard-Georeferenzierung wieder her.
+---
 
-## Baum-Analyse: «Welche Bäume kühlen?»
-Aufklappbares Panel unten links (Klick auf den Titel). Datengrundlage:
-**Baumkataster der Stadt Zürich** (Open Data, 81 068 Bäume; 78 337 davon liegen
-im Hitze-Raster und erhalten einen verlässlichen Wert).
+## 🔥 Worum geht's?
 
-### Wie die Temperatur aus dem Bild gelesen wird
-Laut Quelle (`vorgehen_article.txt`) zeigt die Karte **relative PET** (Abweichung
-vom Stadt-Median), als deckende Farbe gerendert. Naïves «nächste-Farbe»-Matching
-im RGB-Raum ist instabil (die Farbskala faltet sich durch den Raum → ein leicht
-verfälschtes Orange «springt» zu Blau; das erzeugte die unsinnigen Ausreisser).
-Stattdessen wird jeder Pixel auf die **monotone R−B-Achse** der Skala projiziert
-(Rot-minus-Blau steigt durchgehend von kühl→heiss) und über die Legende auf
-°C abgebildet. Anschliessend **räumliche Glättung** (~45 m, Auflösung des
-Klimamodells), die Render-/Kompressionsrauschen entfernt. Grau/Wasser/Weiss
-(keine Hitzedaten) werden maskiert.
+In der Stadt ist Hitze **nicht gleich verteilt**: versiegelte Strassen und Plätze
+glühen, Parks und Gewässer kühlen. Diese Karte macht das sichtbar 👀 — und lädt dazu
+ein, die Rolle der **Stadtbäume** zu erkunden. Praktischer Nebeneffekt im Sommer:
+ein kleiner **Schatten-Wegweiser** 🕶️.
 
-> Validierung: dieselben 20 Bäume im Siriuspark streuten vorher **13 °C**,
-> jetzt **0.9 °C**; Langstrasse liest sich heiss (36°), Irchelpark kühler (32°).
+## 🗺️ Was kann ich tun?
 
-### Tab «Standort» (deskriptiv)
-- **Punktfarbe = gefühlte Temperatur am Baumstandort** – dieselbe blau→rot-Skala
-  wie die Hitzekarte (blau = kühler Standort, rot = heisser). Gradient-Legende im Panel.
-- **Lokale Kühlung** = mittlere PET im 200‑m‑Umkreis minus PET am Baum.
-  Im Schnitt stehen Bäume **0.34 °C kühler** als ihr Umkreis.
-- **Kronengrösse entscheidet:** > 14 m Krone → ~1.1–1.8 °C kühlerer Standort,
-  kleine Bäume kaum (~0.2 °C).
-- Klick auf eine Gattung filtert die Karte; Klick auf einen Baum zeigt Details.
+- 🔍 **Zoomen & schwenken** über die ganze Stadt, mit Strassennamen aus offenen Karten.
+- 🎚️ **Deckkraft** der Hitze-Ebene regeln; zwischen **Nur Hitze** (Strassen scheinen
+  durch) und **Mit Relief** umschalten.
+- 🧭 **Grundkarte wählen** (oben rechts): CARTO hell, OpenStreetMap, swisstopo
+  Farbe/Grau, Esri-Satellit.
+- 🎯 **Ausrichten**: die Hitzekarte mit Ziehgriffen pixelgenau auf die Strassen
+  schieben/skalieren (wird im Browser gespeichert).
+- 🌳 **Bäume einblenden** (Panel unten links) und nach Gattung filtern; auf einen
+  Baum klicken zeigt Details (Temperatur, Kühlung, Krone, Kühlpotenzial).
 
-> ⚠︎ Korrelation: Weide, Fichte, Eibe stehen oft an ohnehin kühlen Lagen.
+## 🌳 Die Baum-Analyse — drei Sichten
 
-### Tab «Art-Effekt» (standortbereinigt)
-Damit nicht Art und Lage verwechselt werden: jeder Baum wird *nur* mit Bäumen im
-selben 150‑m‑Quartier **und** derselben Lagekategorie verglichen
-(`Strassenbaum` ↔ `Strassenbaum`, `Parkbaum` ↔ `Parkbaum`). Kennzahl = PET am Baum
-minus Mittel der gleichartigen Nachbarn (Leave-one-out). Knopf «alle Gattungen»
-öffnet die vollständige, sortierte Liste.
+Aufklappbares Panel unten links (Klick auf den Titel 🔽). Datengrundlage:
+**Baumkataster der Stadt Zürich** (81 068 Bäume; 78 337 davon liegen im Hitze-Raster).
 
-- **Kontrolle:** Strassen-Standorte sind im selben Quartier **+0.46 °C** heisser
-  als Park-Standorte – die Trennung ist nötig.
-- **Lage war ein grosser Teil:** Fichte roh −1.04 °C → bereinigt ~0; Eibe ähnlich.
-- **Robuster Art-Kühler:** **Weide** −0.34 °C (t ≈ −6.8, hoch signifikant).
-- **Warm:** kleine Zier-/Heckengehölze – Thuja +0.44 °C, Weissdorn +0.34 °C (✱✱✱).
-- ✱ = signifikant (✱ |t|>2, ✱✱ >2.6, ✱✱✱ >3.3).
+### 📍 Tab «Standort» (deskriptiv)
+- 🎨 **Punktfarbe = gefühlte Temperatur am Baumstandort** — dieselbe blau→rot-Skala
+  wie die Hitzekarte (🔵 kühl, 🔴 heiss).
+- ❄️ **Lokale Kühlung** = mittlere Temperatur im 200‑m‑Umkreis minus am Baum.
+  Im Schnitt stehen Bäume **0.34 °C kühler** als ihr Umfeld.
+- 👑 **Kronengrösse entscheidet:** > 14 m Krone → ~1.1–1.8 °C kühlerer Standort.
+- ⚠️ *Korrelation, nicht Kausalität* — Weide/Fichte/Eibe stehen oft an ohnehin kühlen Lagen.
 
-### Tab «Schatten» (v2 – Kühl-/Schatten-Guide, literaturbasiert)
-Unabhängig vom Hitzebild. Zeigt, welche Bäume **von Natur aus** am meisten kühlen
-(Schatten + Verdunstung), nach Fachliteratur – ein Wegweiser «wo finde ich guten
-Schatten?».
+### 🧪 Tab «Art-Effekt» (standortbereinigt)
+Jeder Baum wird **nur mit Bäumen im selben 150‑m‑Quartier und derselben Lage**
+verglichen (Strassenbaum ↔ Strassenbaum, Parkbaum ↔ Parkbaum) — so fällt heraus,
+*wo* eine Art wächst, übrig bleibt der Art-Effekt.
+- 🚦 Strassen-Standorte sind im selben Quartier **+0.46 °C** heisser als Park-Standorte.
+- 🍃 Robuster Kühler: **Weide** −0.34 °C (hoch signifikant). Kleine Zier-/Heckengehölze
+  (Thuja, Weissdorn) markieren eher **wärmere** Punkte.
 
-- Jede Gattung erhält einen **Literatur-Score 1–5** (Kronendichte/LAI + Transpiration),
-  siehe `treedata/genus_cooling_literature.md`. Top: Linde, Platane, Ahorn,
-  Rosskastanie, Hainbuche; Nadel- und kleine Zierbäume tief.
-- **Karte:** Punktfarbe (grün-Skala) = *geliefertes* Potenzial = Gattungs-Score ×
-  **heutige Kronengrösse** – ein grosser Baum spendet jetzt mehr Schatten als ein
-  frisch gepflanzter. Beim Wechsel auf diesen Tab färbt sich die Baum-Ebene um.
-- Auf eine Art klicken filtert die Karte; Baum-Popup zeigt das Kühlpotenzial.
-- Heuristik (kein Vor-Ort-Messwert) – ergänzt die gemessenen Tabs, ohne deren
-  Standort-Confounding.
+### 🌿 Tab «Schatten» (Kühl-Guide, literaturbasiert)
+Unabhängig vom Hitzebild: welche Bäume **von Natur aus** am meisten kühlen
+(Schatten + Verdunstung), nach Fachliteratur 📚.
+- 🏆 Top: **Linde, Platane, Ahorn, Rosskastanie, Hainbuche**; Nadel- & kleine
+  Zierbäume tief.
+- 🟢 Karten-Farbe (grün) = Gattungs-Score × **heutige Kronengrösse** → wo steht jetzt
+  guter Schatten.
 
-### Daten neu erzeugen
-`python3 treedata/build.py` (braucht `numpy` + `Pillow`) liest
-`treedata/baumkataster.geojson` + das Hitzebild und schreibt
-`tree_analysis`, `tree_within`, `trees_points` (je `.json` + `.js`).
+## 🧠 Wie ist das entstanden?
 
-## Dateien
+1. 🧩 **Georeferenzierung** der Hitzekarte: geometrisch an die Stadtgrenze angepasst
+   (Bild- ↔ Geo-Seitenverhältnis stimmen auf 3 Nachkommastellen).
+2. 🎨 **Farbe → Temperatur:** Die Karte zeigt *relative* PET als deckende Farbe.
+   Naïves «nächste-Farbe»-Matching ist instabil — deshalb wird jeder Pixel auf die
+   **monotone R−B-Achse** der Farbskala projiziert und über die Legende auf °C
+   abgebildet, dann **räumlich geglättet** (~45 m). 
+   - ✅ *Validierung:* dieselben 20 Bäume im Siriuspark streuten vorher **13 °C**,
+     jetzt **0.9 °C**.
+3. 🌳 **Verschneidung** mit dem Baumkataster und drei Analysen (siehe oben).
+4. ⚙️ Alles wird von [`treedata/build.py`](treedata/build.py) erzeugt; die Seite ist
+   ein einziges `index.html` + ein paar Daten-Dateien (kein Build-Tool nötig).
+
+## 🙏 Danke! — Inspiration, Daten & Werkzeuge
+
+Dieses Hobby-Projekt steht komplett auf den Schultern offener Daten und Arbeit anderer 💚:
+
+- 💡 **Inspiration & Hitzekarte:** der Tages-Anzeiger-Artikel
+  [«Hitzewelle Schweiz — wo es in den Städten am heissesten ist»](https://www.tagesanzeiger.ch/hitzewelle-schweiz-wo-es-in-den-staedten-am-heissesten-ist-877255459625).
+  Die Hitzedaten beruhen auf kantonalen **Klimamodellen** (PET, gefühlte Temperatur).
+- 🌳 **Baumdaten:** [Baumkataster der Stadt Zürich](https://data.stadt-zuerich.ch/dataset/geo_baumkataster)
+  (Open Government Data) — danke an **Grün Stadt Zürich** & das OGD-Team.
+- 🗺️ **Grundkarten:** [OpenStreetMap](https://www.openstreetmap.org/copyright) (© Mitwirkende),
+  [swisstopo](https://www.swisstopo.admin.ch/) (OGD), [CARTO](https://carto.com/) &
+  [Esri World Imagery](https://www.esri.com/).
+- 🧰 **Bibliothek:** [Leaflet](https://leafletjs.com/) — die freundlichste Karten-Lib. 🍃
+- 📚 **Wissenschaft:** u. a. Rahman et al. (München: Linde kühlt bis **3.5 °C**) und
+  weitere Studien — vollständige Liste & Scores in
+  [`treedata/genus_cooling_literature.md`](treedata/genus_cooling_literature.md).
+
+## 🛠️ Selbst ausführen / Daten neu erzeugen
+
+```bash
+# einfach öffnen (Doppelklick) oder lokal servieren:
+python3 -m http.server 8000   # → http://localhost:8000
+# Analyse-Daten neu bauen (braucht numpy + Pillow):
+python3 treedata/build.py
+```
+
+Internet wird nur für **Kartenkacheln** und **Leaflet** (CDN) benötigt; die
+Baum-Daten liegen als `*.js`-Globals daneben, damit es auch per Doppelklick
+(`file://`) lädt.
+
+## 📁 Dateien
+
 | Datei | Zweck |
 |-------|-------|
-| `index.html` | komplette App (HTML + CSS + JS) |
-| `zurich-desktop-light-de.webp` | Original-Hitzekarte (Quelle: Tages-Anzeiger) |
-| `zurich-heat-masked.png` | freigestellte Hitze-Ebene (grauer Hintergrund transparent) |
-| `legend.png` | Farb-Legende der gefühlten Temperatur |
-| `vorgehen_article.txt` | Methodenbeschreibung der Originalkarte (PET, relativ) |
-| `treedata/baumkataster.geojson` | Roh-Quelle: Baumkataster Stadt Zürich (OGD) |
-| `treedata/build.py` | erzeugt die Analyse-Dateien neu |
-| `treedata/genus_cooling_literature.md` | Literatur-Recherche + Score je Gattung (Basis Tab «Schatten») |
-| `treedata/tree_analysis.*` | Gattungs-Rangliste (roh) + Kronen + Farbskala + `guide` (Literatur-Score) |
-| `treedata/tree_within.*` | standortbereinigter Art-Effekt (Tab 2) |
-| `treedata/trees_points.*` | 78 337 Bäume (Position, PET, Kühlung, Krone, Gattung) |
-| `*.js` neben `*.json` | dieselben Daten als JS-Globals, damit die Seite auch per Doppelklick (`file://`) lädt – `fetch` ist dort blockiert |
+| `index.html` | 🌐 komplette App (HTML + CSS + JS) |
+| `zurich-desktop-light-de.webp` | 🔥 Original-Hitzekarte (© Tages-Anzeiger) |
+| `zurich-heat-masked.png` | ✂️ freigestellte Hitze-Ebene (Hintergrund transparent) |
+| `legend.png` | 🌈 Farb-Legende der gefühlten Temperatur |
+| `vorgehen_article.txt` | 📝 Methoden-Notiz der Originalkarte (PET, relativ) |
+| `treedata/baumkataster.geojson` | 🌳 Roh-Quelle: Baumkataster Zürich (OGD) |
+| `treedata/build.py` | ⚙️ erzeugt alle Analyse-Dateien |
+| `treedata/genus_cooling_literature.md` | 📚 Literatur + Kühl-Score je Gattung |
+| `treedata/tree_analysis.*` | 📊 Gattungs-Rangliste + Kronen + Farbskala + Literatur-Score |
+| `treedata/tree_within.*` | 🧪 standortbereinigter Art-Effekt |
+| `treedata/trees_points.*` | 📍 78 337 Bäume (Position, PET, Kühlung, Krone, Gattung) |
 
-## Georeferenzierung
-Die Standard-Bounds wurden geometrisch an die Stadtgrenze angepasst
-(Seitenverhältnis Bild ↔ Geografie stimmt auf 3 Nachkommastellen überein):
-`S 47.31333 · W 8.38564 · N 47.45056 · E 8.67139`.
-Da es sich um ein 2D-Reliefbild handelt, kann eine minimale Verschiebung bleiben –
-dafür ist der **Ausrichten**-Modus gedacht.
+## ⚠️ Kleingedrucktes
+
+- Die Hitzewerte sind aus einem **gerenderten Bild** geschätzt (±1–2 °C, *relativ*) —
+  gut fürs Erkunden & Vergleichen, kein amtlicher Messwert.
+- Das Hitzebild ist © **Tages-Anzeiger** und hier nur zu nicht-kommerziellen
+  Analyse-/Demo-Zwecken eingebunden; die **MIT-Lizenz** dieses Repos gilt für den
+  Code, nicht für dieses Bild.
+- Gebaut mit viel ☕ und [Claude Code](https://claude.com/claude-code) 🤖.
