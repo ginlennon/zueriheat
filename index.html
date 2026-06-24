@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hitzekarte Zürich – Gefühlte Temperatur</title>
+
+<!-- Leaflet (openly accessible CDN) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- tree analysis data as globals (load via file:// too, unlike fetch) -->
+<script src="treedata/tree_analysis.js"></script>
+<script src="treedata/tree_within.js"></script>
+
+<style>
+  :root { --panel-bg: rgba(255,255,255,0.94); --accent:#d6431f; }
+  html, body { height: 100%; margin: 0; }
+  #map { position: absolute; inset: 0; background:#e9e9e9; }
+  .leaflet-container { font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+  /* ---- control panel ---- */
+  .panel {
+    background: var(--panel-bg); border-radius: 10px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    padding: 12px 14px; width: 250px;
+  }
+  .panel h1 { font-size: 15px; margin: 0 0 2px; }
+  .panel .sub { font-size: 11px; color:#555; margin: 0 0 10px; }
+  .panel label.row { display:flex; align-items:center; gap:8px; font-size:12px; margin: 9px 0; }
+  .panel input[type=range] { flex:1; }
+  .panel .val { font-variant-numeric: tabular-nums; color:#444; min-width: 34px; text-align:right; }
+  .btn {
+    display:inline-block; border:1px solid #ccc; background:#fff; cursor:pointer;
+    border-radius:6px; padding:5px 9px; font-size:12px; color:#222;
+  }
+  .btn:hover { background:#f3f3f3; }
+  .btn.active { background: var(--accent); border-color: var(--accent); color:#fff; }
+  .btnrow { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .hint { font-size:11px; color:#666; margin-top:8px; line-height:1.35; }
+  .bounds { font-size:10px; color:#777; margin-top:6px; font-family: ui-monospace, monospace; word-break: break-all; }
+
+  /* ---- legend ---- */
+  .legend-box { background: var(--panel-bg); border-radius:10px; box-shadow:0 1px 5px rgba(0,0,0,0.35); padding:8px 10px; }
+  .legend-box img { display:block; width: 230px; max-width: 46vw; height:auto; }
+  .legend-box .cap { font-size:11px; color:#555; margin: 0 0 4px; }
+
+  /* corner / move handles */
+  .handle { background:#fff; border:2px solid var(--accent); border-radius:50%; box-shadow:0 0 0 2px rgba(255,255,255,.7); }
+  .handle.move { border-style:dashed; }
+
+  /* ---- tree analysis panel ---- */
+  .tree-canvas { pointer-events:none; }
+  .tpanel { width: 290px; max-height: 78vh; overflow-y:auto; }
+  .tpanel h2 { font-size:14px; margin:0 0 2px; }
+  .tpanel .lead { font-size:11.5px; color:#444; margin:0 0 8px; line-height:1.4; }
+  .tpanel .lead b { color:#137; }
+  .tpanel h3 { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#777; margin:12px 0 5px; }
+  .bar { display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; padding:1px 3px; border-radius:4px; }
+  .bar:hover { background:#f0f0f0; }
+  .bar.sel { background:#e8f2fb; outline:1px solid #9cc6ec; }
+  .bar .nm { width:108px; flex:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar .track { flex:1; background:#eee; border-radius:3px; height:11px; position:relative; }
+  .bar .fill { height:100%; border-radius:3px; }
+  .bar .v { width:40px; flex:none; text-align:right; font-variant-numeric:tabular-nums; color:#333; }
+  .crowngrid { display:grid; grid-template-columns:auto 1fr auto; gap:3px 7px; font-size:11px; align-items:center; }
+  .crowngrid .cf { height:9px; border-radius:3px; background:#2c7fb8; }
+  .petlegend { margin:7px 0 4px; }
+  .petbar { height:12px; border-radius:3px; border:1px solid rgba(0,0,0,.12); }
+  .petticks { display:flex; justify-content:space-between; font-size:10px; color:#555; margin-top:2px; }
+  .caveat { font-size:10px; color:#888; line-height:1.4; margin-top:10px; border-top:1px solid #eee; padding-top:7px; }
+  .tpanel .src { font-size:9.5px; color:#aaa; margin-top:6px; }
+  .tpanel h2 { cursor:pointer; user-select:none; }
+  .tpanel h2 .caret { display:inline-block; transition:transform .15s; margin-right:5px; font-size:11px; color:#888; }
+  .tpanel.collapsed h2 .caret { transform:rotate(-90deg); }
+  .tpanel.collapsed { width:auto; }
+  .tpanel.collapsed .tbody { display:none; }
+  .fulllist { max-height:210px; overflow-y:auto; margin:2px 0 4px; padding-right:2px;
+              border-top:1px solid #eee; border-bottom:1px solid #eee; }
+  .tabs { display:flex; gap:4px; margin:8px 0 6px; }
+  .tab { flex:1; text-align:center; font-size:11px; padding:5px 4px; border:1px solid #ddd;
+         border-radius:6px; cursor:pointer; background:#fafafa; color:#555; }
+  .tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .tabpane { display:none; } .tabpane.active { display:block; }
+  .bar .v.sig { color:#b3261e; font-weight:600; }
+  .dev-row .nm { width:96px; } .dev-row .v { width:66px; white-space:nowrap; }
+  .shrink { font-size:10.5px; color:#555; line-height:1.5; margin:4px 0; }
+  .shrink b { color:#137; }
+  .pill { display:inline-block; font-size:9.5px; background:#eef3f8; color:#356; border-radius:4px; padding:1px 5px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+/* =====================================================================
+   Hitzekarte Zürich – heat overlay on an open street map
+   ===================================================================== */
+
+// --- Initial georeference (geometrically fitted, aspect ratio verified) ---
+// south, west, north, east  — fine-tune live with the "Ausrichten" tool.
+const DEFAULT_BOUNDS = { south: 47.31333, west: 8.38564, north: 47.45056, east: 8.67139 };
+const HEAT_IMG_MASKED = 'zurich-heat-masked.png';     // only the heat data (streets show through)
+const HEAT_IMG_FULL   = 'zurich-desktop-light-de.webp'; // original incl. relief context
+const HEAT_IMG = HEAT_IMG_MASKED;
+const LEGEND_IMG = 'legend.png';
+const LS_KEY = 'hitzekarte-bounds-v1';
+
+function loadBounds() {
+  try { const b = JSON.parse(localStorage.getItem(LS_KEY)); if (b && b.south) return b; } catch(e){}
+  return { ...DEFAULT_BOUNDS };
+}
+let B = loadBounds();
+const llBounds = () => L.latLngBounds([[B.south, B.west],[B.north, B.east]]);
+
+// --- Map ---
+const map = L.map('map', { zoomControl: true, minZoom: 9, maxZoom: 19 })
+             .setView([47.3815, 8.535], 13);
+
+// --- Base layers (all openly accessible) ---
+const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 20, attribution: '&copy; OpenStreetMap, &copy; CARTO' });
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
+const swissColor = L.tileLayer(
+  'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg', {
+  maxZoom: 19, attribution: '&copy; swisstopo' });
+const swissGrey = L.tileLayer(
+  'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg', {
+  maxZoom: 19, attribution: '&copy; swisstopo' });
+const esriSat = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}', {
+  maxZoom: 19, attribution: 'Tiles &copy; Esri' });
+
+cartoLight.addTo(map);
+
+// --- Heat overlay ---
+let overlay = L.imageOverlay(HEAT_IMG, llBounds(), { opacity: 0.78, interactive: false, zIndex: 400 }).addTo(map);
+
+// --- Layer switcher ---
+L.control.layers(
+  { 'Hell (CARTO)': cartoLight, 'OpenStreetMap': osm, 'swisstopo Farbe': swissColor,
+    'swisstopo Grau': swissGrey, 'Satellit (Esri)': esriSat },
+  { 'Hitzekarte': overlay },
+  { position: 'topright', collapsed: false }
+).addTo(map);
+
+/* ================= Control panel ================= */
+const Panel = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd: function () {
+    const d = L.DomUtil.create('div', 'panel');
+    d.innerHTML = `
+      <h1>Hitzekarte Zürich</h1>
+      <p class="sub">Gefühlte Temperatur · überlagert auf offene Karte</p>
+
+      <label class="row">Deckkraft
+        <input id="op" type="range" min="0" max="100" value="78">
+        <span class="val" id="opv">78%</span>
+      </label>
+
+      <div class="btnrow">
+        <button class="btn active" id="masked">Nur Hitze</button>
+        <button class="btn" id="adjust">Ausrichten</button>
+        <button class="btn" id="fit">Hinzoomen</button>
+        <button class="btn" id="reset">Zurücksetzen</button>
+      </div>
+
+      <div class="hint" id="hint">Tipp: „Ausrichten" einschalten, dann die runden
+        Griffe ziehen, bis die Hitzekarte exakt auf den Strassen liegt
+        (Eck-Griffe = Grösse, gestrichelter Griff = verschieben).</div>
+      <div class="bounds" id="bounds"></div>
+    `;
+    L.DomEvent.disableClickPropagation(d);
+    L.DomEvent.disableScrollPropagation(d);
+    return d;
+  }
+});
+new Panel().addTo(map);
+
+/* ================= Legend ================= */
+const Legend = L.Control.extend({
+  options: { position: 'bottomright' },
+  onAdd: function () {
+    const d = L.DomUtil.create('div', 'legend-box');
+    d.innerHTML = `<p class="cap">Gefühlte Temperatur</p><img src="${LEGEND_IMG}" alt="Legende Temperatur">`;
+    return d;
+  }
+});
+new Legend().addTo(map);
+
+/* ================= Wiring ================= */
+const $ = (id) => document.getElementById(id);
+
+$('op').addEventListener('input', e => {
+  const v = +e.target.value; overlay.setOpacity(v/100); $('opv').textContent = v + '%';
+});
+
+function showBounds() {
+  $('bounds').textContent =
+    `S ${B.south.toFixed(5)}  W ${B.west.toFixed(5)}\nN ${B.north.toFixed(5)}  E ${B.east.toFixed(5)}`;
+}
+function saveBounds() { localStorage.setItem(LS_KEY, JSON.stringify(B)); showBounds(); }
+
+let masked = true;
+$('masked').addEventListener('click', e => {
+  masked = !masked;
+  e.target.classList.toggle('active', masked);
+  e.target.textContent = masked ? 'Nur Hitze' : 'Mit Relief';
+  overlay.setUrl(masked ? HEAT_IMG_MASKED : HEAT_IMG_FULL);
+});
+
+$('fit').addEventListener('click', () => map.fitBounds(llBounds(), { padding:[20,20] }));
+$('reset').addEventListener('click', () => {
+  B = { ...DEFAULT_BOUNDS }; overlay.setBounds(llBounds()); saveBounds();
+  if (adjustOn) refreshHandles();
+});
+
+/* ---- Alignment handles ---- */
+let adjustOn = false, handles = {};
+function makeHandle(latlng, cls) {
+  return L.marker(latlng, {
+    draggable: true,
+    icon: L.divIcon({ className: 'handle ' + cls, iconSize: [16,16] })
+  });
+}
+function refreshHandles() {
+  Object.values(handles).forEach(h => map.removeLayer(h));
+  handles = {};
+  if (!adjustOn) return;
+  handles.sw = makeHandle([B.south, B.west], 'sw');
+  handles.ne = makeHandle([B.north, B.east], 'ne');
+  handles.mv = makeHandle([(B.south+B.north)/2, (B.west+B.east)/2], 'move');
+  Object.values(handles).forEach(h => h.addTo(map));
+
+  handles.sw.on('drag', e => { const p=e.target.getLatLng(); B.south=p.lat; B.west=p.lng; applyBounds(); });
+  handles.ne.on('drag', e => { const p=e.target.getLatLng(); B.north=p.lat; B.east=p.lng; applyBounds(); });
+
+  let last=null;
+  handles.mv.on('dragstart', e => last = e.target.getLatLng());
+  handles.mv.on('drag', e => {
+    const p=e.target.getLatLng(); const dLat=p.lat-last.lat, dLng=p.lng-last.lng; last=p;
+    B.south+=dLat; B.north+=dLat; B.west+=dLng; B.east+=dLng;
+    overlay.setBounds(llBounds());
+    handles.sw.setLatLng([B.south, B.west]); handles.ne.setLatLng([B.north, B.east]);
+    showBounds();
+  });
+  Object.values(handles).forEach(h => h.on('dragend', saveBounds));
+}
+function applyBounds() {
+  overlay.setBounds(llBounds());
+  handles.mv && handles.mv.setLatLng([(B.south+B.north)/2,(B.west+B.east)/2]);
+  showBounds();
+}
+
+$('adjust').addEventListener('click', e => {
+  adjustOn = !adjustOn;
+  e.target.classList.toggle('active', adjustOn);
+  overlay.setOpacity(adjustOn ? Math.min(0.6, +$('op').value/100) : +$('op').value/100);
+  refreshHandles();
+});
+
+showBounds();
+
+/* =====================================================================
+   TREE COOLING ANALYSIS
+   Trees: Baumkataster Stadt Zürich (OGD). For each tree the felt
+   temperature is sampled from the heat raster, and "local cooling" =
+   mean temp in a 200 m ring around the tree minus the temp at the tree.
+   ===================================================================== */
+
+const _lerp=(a,b,t)=>Math.round(a+(b-a)*t);
+// diverging teal/red for the "cooling vs surroundings" bars in the panel
+function coolColor(v) {
+  if (v>=0){ const t=Math.min(1,v/1.6); return `rgb(${_lerp(232,12,t)},${_lerp(232,120,t)},${_lerp(232,168,t)})`; }
+  const t=Math.min(1,-v/1.0);            return `rgb(${_lerp(232,201,t)},${_lerp(232,58,t)},${_lerp(232,47,t)})`;
+}
+// PET colour: SAME blue->red scale as the heat map legend (built from data.colormap)
+let _cmap=[[22,'#2d85ba'],[44,'#d81c1d']];
+function setCmap(c){ if(c&&c.length) _cmap=c; }
+function petColor(T){
+  if(T<=_cmap[0][0]) return _cmap[0][1];
+  for(let i=1;i<_cmap.length;i++){
+    if(T<=_cmap[i][0]){
+      const [t0,h0]=_cmap[i-1],[t1,h1]=_cmap[i], f=(T-t0)/(t1-t0);
+      const a=h0.match(/\w\w/g).map(x=>parseInt(x,16)), b=h1.match(/\w\w/g).map(x=>parseInt(x,16));
+      return `rgb(${_lerp(a[0],b[0],f)},${_lerp(a[1],b[1],f)},${_lerp(a[2],b[2],f)})`;
+    }
+  }
+  return _cmap[_cmap.length-1][1];
+}
+// CSS gradient string for the legend bar
+function cmapGradient(){ return 'linear-gradient(90deg,'+_cmap.map(s=>s[1]).join(',')+')'; }
+
+// v2 shade/cooling-potential palette (pale -> deep green) for value 0..1
+const _SHADE=[[0,[236,239,241]],[0.35,[199,227,184]],[0.7,[74,165,100]],[1,[20,83,45]]];
+function shadeColor(v){
+  v=Math.max(0,Math.min(1,v));
+  for(let i=1;i<_SHADE.length;i++){ if(v<=_SHADE[i][0]){
+    const [p0,a]=_SHADE[i-1],[p1,b]=_SHADE[i], f=(v-p0)/(p1-p0);
+    return `rgb(${_lerp(a[0],b[0],f)},${_lerp(a[1],b[1],f)},${_lerp(a[2],b[2],f)})`; }}
+  return 'rgb(20,83,45)';
+}
+const SHADE_GRAD='linear-gradient(90deg,#eceff1,#c7e3b8,#4aa564,#14532d)';
+function shadeWord(s){ return s>=70?'hoch':s>=45?'mittel':s>=25?'gering':'sehr gering'; }
+
+// ---- custom canvas layer (viewport-rendered, zoom-gated) ----
+const TreeLayer = L.Layer.extend({
+  initialize(d){ this.d=d; this.filterG=-1; this.mode='pet'; },
+  onAdd(map){
+    this._map=map;
+    this._c=L.DomUtil.create('canvas','tree-canvas leaflet-zoom-hide');
+    this._c.style.position='absolute';
+    this._c.style.zIndex=450;            // above the heat image overlay (z 400)
+    map.getPanes().overlayPane.appendChild(this._c);
+    map.on('moveend zoomend resize', this._redraw, this);
+    this._redraw();
+  },
+  onRemove(map){ L.DomUtil.remove(this._c); map.off('moveend zoomend resize', this._redraw, this); },
+  setFilter(g){ this.filterG=g; this._redraw(); },
+  _redraw(){
+    const m=this._map, size=m.getSize(), tl=m.containerPointToLayerPoint([0,0]);
+    L.DomUtil.setPosition(this._c, tl);
+    this._c.width=size.x; this._c.height=size.y;
+    const ctx=this._c.getContext('2d'); ctx.clearRect(0,0,size.x,size.y);
+    const z=m.getZoom();
+    const note=document.getElementById('zoomhint'); if(note) note.style.display = z<13?'block':'none';
+    if(z<13) return;
+    const b=m.getBounds(), d=this.d, S=b.getSouth(),N2=b.getNorth(),Wb=b.getWest(),E=b.getEast();
+    const r = z>=17?5.5: z>=16?4.5: z>=15?3.4: z>=14?2.6:1.9;
+    ctx.lineWidth=0.7; ctx.strokeStyle='rgba(40,40,40,0.6)';
+    for(let i=0;i<d.lat.length;i++){
+      if(this.filterG>=0 && d.g[i]!==this.filterG) continue;
+      const la=d.lat[i], ln=d.lng[i];
+      if(la<S||la>N2||ln<Wb||ln>E) continue;
+      const p=m.latLngToContainerPoint([la,ln]);
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,6.2832);
+      ctx.fillStyle = this.mode==='shade' ? shadeColor((d.s?d.s[i]:0)/100) : petColor(d.t[i]/10);
+      ctx.globalAlpha=0.95; ctx.fill();
+      if(z>=14){ ctx.globalAlpha=0.9; ctx.stroke(); }
+    }
+    ctx.globalAlpha=1;
+  }
+});
+
+let treeLayer=null, treeData=null, treesOn=false, analysis=null, desiredFilter=-1;
+
+function buildTreePanel(){
+  const d=L.DomUtil.create('div','panel tpanel');
+  const m=analysis.meta, gen=analysis.genera, cb=analysis.crownBins;
+  const maxCool=Math.max(...gen.map(g=>g.cooling));
+  const cmax=Math.max(...cb.map(c=>c.cooling));
+  const W = window.__WITHIN__;                       // environment-controlled analysis
+  const latinIdx={}; gen.forEach((g,i)=> latinIdx[g.genus]=i);   // genus -> map filter id
+  const rawByLatin={}; gen.forEach(g=> rawByLatin[g.genus]=g.cooling);
+
+  // ---------- Tab 1: descriptive cooling ----------
+  const bars = gen.slice(0,14).map((g,i)=>`
+    <div class="bar" data-g="${i}" title="${g.de} (${g.genus}) · n=${g.n} · ø Krone ${g.crown} m">
+      <span class="nm">${g.de}</span>
+      <span class="track"><span class="fill" style="width:${(g.cooling/maxCool*100).toFixed(0)}%;background:${coolColor(g.cooling)}"></span></span>
+      <span class="v">${g.cooling.toFixed(2)}°</span>
+    </div>`).join('');
+  const crown = cb.map(c=>`
+      <span>${c.lo}–${c.hi} m</span>
+      <span class="track" style="background:#eee;border-radius:3px;height:9px;"><span class="cf" style="display:block;width:${(c.cooling/cmax*100).toFixed(0)}%"></span></span>
+      <span style="text-align:right">${c.cooling.toFixed(2)}°</span>`).join('');
+
+  // ---------- Tab 2: environment-controlled species effect ----------
+  let tab2='';
+  if(W){
+    const sig = W.genera.filter(g=>Math.abs(g.t)>=2).sort((a,b)=>a.dev-b.dev);
+    const dmax = Math.max(...sig.map(g=>Math.abs(g.dev)),0.5);
+    const star = t => Math.abs(t)>3.3?'***':Math.abs(t)>2.6?'**':'*';
+    const devBar = g=>{
+      const id = (g.genus in latinIdx)? latinIdx[g.genus] : -2;
+      const w=(Math.abs(g.dev)/dmax*100).toFixed(0), col=coolColor(-g.dev);
+      return `<div class="bar dev-row" data-g="${id}" title="${g.de} (${g.genus}) · n=${g.n} · t=${g.t}">
+        <span class="nm">${g.de}</span>
+        <span class="track"><span class="fill" style="width:${w}%;background:${col}"></span></span>
+        <span class="v sig">${g.dev>0?'+':''}${g.dev.toFixed(2)}° ${star(g.t)}</span></div>`;
+    };
+    const cool=sig.filter(g=>g.dev<0), warm=sig.filter(g=>g.dev>0).reverse();
+    const cmp=(lat,de)=>{ const w=W.genera.find(x=>x.genus===lat); if(!(lat in rawByLatin)||!w) return '';
+        return `<div class="shrink">${de}: roh <b>${rawByLatin[lat].toFixed(2)}° kühler</b> →
+            bereinigt <b>${w.dev>0?'+':''}${w.dev.toFixed(2)}°</b></div>`; };
+    // full sortable list of ALL genera (hidden until clicked)
+    const fullRows = [...W.genera].sort((a,b)=>a.dev-b.dev).map(g=>{
+      const id=(g.genus in latinIdx)?latinIdx[g.genus]:-2;
+      return `<div class="bar dev-row" data-g="${id}" title="${g.genus} · n=${g.n} · t=${g.t}">
+        <span class="nm">${g.de}</span>
+        <span class="track"><span class="fill" style="width:${(Math.abs(g.dev)/dmax*100).toFixed(0)}%;background:${coolColor(-g.dev)}"></span></span>
+        <span class="v ${Math.abs(g.t)>=2?'sig':''}">${g.dev>0?'+':''}${g.dev.toFixed(2)}° ${Math.abs(g.t)>=2?star(g.t):''}</span></div>`;
+    }).join('');
+    tab2=`
+      <p class="lead">Vergleicht jeden Baum <b>nur mit Bäumen im selben Quartier (150 m) und
+        derselben Lage</b> – Strassenbaum nur mit Strassenbäumen, Parkbaum nur mit Parkbäumen.
+        So fällt heraus, <i>wo</i> eine Art wächst; übrig bleibt der Art‑Effekt.</p>
+      <p class="lead"><span class="pill">Kontrolle</span> Strassen‑Standorte sind im selben Quartier
+        <b>+${W.streetVsPark.toFixed(2)} °C</b> heisser als Park‑Standorte – darum muss man getrennt vergleichen.</p>
+
+      <h3>Kühler als gleichartige Nachbarn</h3>${cool.map(devBar).join('')||'<p class="lead">–</p>'}
+      <h3>Wärmer als gleichartige Nachbarn</h3>${warm.map(devBar).join('')}
+
+      <button class="btn" id="fulltog" style="margin:8px 0 2px;width:100%">▸ alle ${W.genera.length} Gattungen anzeigen</button>
+      <div class="fulllist" id="fulllist" style="display:none">${fullRows}</div>
+
+      <h3>Lage war ein grosser Teil</h3>
+      ${cmp('Picea','Fichte')}${cmp('Taxus','Eibe')}${cmp('Fagus','Rotbuche')}${cmp('Salix','Weide')}
+      <p class="shrink" style="margin-top:6px">Fazit: Vieles aus Tab 1 war <b>Lage</b>, nicht Art.
+        Robust bleibt vor allem die <b>Weide</b> (t=${W.genera.find(x=>x.genus==='Salix')?.t}); kleine
+        Zier‑/Heckengehölze (Thuja, Weissdorn) markieren eher <b>wärmere</b> Punkte.
+        ✱ = statistisch signifikant (✱ |t|&gt;2, ✱✱ &gt;2.6, ✱✱✱ &gt;3.3).</p>`;
+  } else {
+    tab2='<p class="lead">Standort‑Analyse nicht geladen.</p>';
+  }
+
+  // ---------- Tab 3: literature-based cooling/shade guide (v2) ----------
+  const guide=analysis.guide||[];
+  const guideBars=guide.slice(0,16).map(gr=>{
+    const id=(gr.genus in latinIdx)?latinIdx[gr.genus]:-2;
+    return `<div class="bar" data-g="${id}" title="${gr.de} (${gr.genus}) · n=${gr.n} · ø Krone ${gr.crown} m">
+      <span class="nm">${gr.de}</span>
+      <span class="track"><span class="fill" style="width:${(gr.score/5*100).toFixed(0)}%;background:${shadeColor(gr.score/5)}"></span></span>
+      <span class="v">${gr.score.toFixed(1)}</span></div>`;
+  }).join('');
+  const tab3=`
+    <p class="lead">Unabhängig vom Hitzebild: welche Bäume <b>von Natur aus am meisten
+      kühlen</b> (Schatten + Verdunstung) – nach Fachliteratur, Score 1–5 aus
+      Kronendichte/LAI &amp; Transpiration. Praktisch: <i>wo finde ich guten Schatten?</i></p>
+    <label class="row" style="margin:4px 0 2px"><input type="checkbox" id="shadetog"> Kühlpotenzial auf der Karte</label>
+    <div class="petlegend">
+      <div style="font-size:11px;color:#444;margin-bottom:2px">Punktfarbe = geliefertes Potenzial (Art × Kronengrösse)</div>
+      <div class="petbar" style="background:${SHADE_GRAD}"></div>
+      <div class="petticks"><span>gering</span><span>mittel</span><span>hoch 🌳</span></div>
+    </div>
+    <h3>Beste Kühler‑Arten (Literatur)</h3>${guideBars}
+    <div class="bar" data-g="-1" style="color:#777"><span class="nm">↺ alle Gattungen</span></div>
+    <p class="shrink" style="margin-top:6px">Linde, Platane, Ahorn, Rosskastanie &amp; Hainbuche
+      kühlen am stärksten (dichte Kronen, hohe Transpiration); Nadel‑ und kleine Zierbäume wenig.
+      Die Karte gewichtet zusätzlich die <b>heutige Kronengrösse</b> – ein grosser Baum spendet
+      jetzt mehr Schatten als ein frisch gepflanzter.</p>
+    <p class="caveat">Quelle: Fachliteratur (treedata/genus_cooling_literature.md), u. a. Rahman et al.
+      (München: Linde bis 3.5 °C). Heuristik, kein Messwert vor Ort – ergänzt die gemessenen Tabs.</p>`;
+
+  d.innerHTML = `
+    <h2 id="ttitle"><span class="caret">▾</span>🌳 Welche Bäume kühlen?</h2>
+    <div class="tbody">
+    <div class="tabs">
+      <div class="tab active" data-tab="0">Standort</div>
+      <div class="tab" data-tab="1">Art‑Effekt</div>
+      <div class="tab" data-tab="2">Schatten</div>
+    </div>
+
+    <div class="tabpane active" data-pane="0">
+      <p class="lead">${m.nTrees.toLocaleString('de-CH')} Stadtbäume, je mit der gefühlten
+        Temperatur (PET) an ihrem Standort verknüpft. <b>Lokale Kühlung</b> = wie viel kühler
+        ein Baumstandort ist als der 200‑m‑Umkreis. Im Schnitt <b>${m.meanCooling.toFixed(2)} °C kühler</b>.</p>
+
+      <label class="row" style="margin:4px 0 2px"><input type="checkbox" id="treetog"> Bäume auf der Karte zeigen</label>
+      <div class="petlegend">
+        <div style="font-size:11px;color:#444;margin-bottom:2px">Punktfarbe = gefühlte Temperatur am Baumstandort</div>
+        <div class="petbar" style="background:${cmapGradient()}"></div>
+        <div class="petticks"><span>🔵 kühl ~${Math.round(m.petLo)}°</span><span>${Math.round((m.petLo+m.petHi)/2)}°</span><span>heiss ~${Math.round(m.petHi)}° 🔴</span></div>
+      </div>
+      <div id="zoomhint" style="display:none;font-size:10.5px;color:#c60;">Zum Anzeigen näher heranzoomen (ab Zoom 13).</div>
+
+      <h3>Gattungen nach lokaler Kühlung</h3>${bars}
+      <div class="bar" data-g="-1" style="color:#777"><span class="nm">↺ alle Gattungen</span></div>
+      <h3>Kronengrösse entscheidet</h3>
+      <div class="crowngrid">${crown}</div>
+      <p class="lead" style="margin-top:6px">Grosse Kronen (&gt;14 m) markieren <b>~1.1–1.8 °C</b>
+        kühlere Standorte, kleine kaum (~0.2 °C). Aber: viel davon ist <i>Lage</i> – siehe „Art‑Effekt".</p>
+      <p class="caveat">⚠︎ Tab 1 ist Korrelation: Weide, Fichte, Eibe stehen oft an ohnehin kühlen
+        Lagen (Wasser, Park, Waldrand). PET ist <i>relativ</i> aus dem Rasterbild geschätzt (±1–2 °C).</p>
+    </div>
+
+    <div class="tabpane" data-pane="1">${tab2}</div>
+    <div class="tabpane" data-pane="2">${tab3}</div>
+    <p class="src">Bäume: Baumkataster Stadt Zürich (OGD) · Hitze: Tages‑Anzeiger · Kühlung: Fachliteratur</p>
+    </div>
+  `;
+  L.DomEvent.disableClickPropagation(d);
+  L.DomEvent.disableScrollPropagation(d);
+
+  // collapse / expand the whole box (default collapsed -> only title)
+  d.classList.add('collapsed');
+  d.querySelector('#ttitle').addEventListener('click', ()=> d.classList.toggle('collapsed'));
+  // full genus list toggle (Tab 2)
+  const ft=d.querySelector('#fulltog');
+  if(ft) ft.addEventListener('click', ()=>{
+    const fl=d.querySelector('#fulllist'); const open=fl.style.display==='none';
+    fl.style.display=open?'block':'none';
+    ft.textContent=(open?'▾ ':'▸ ')+'alle '+window.__WITHIN__.genera.length+' Gattungen'+(open?' verbergen':' anzeigen');
+  });
+
+  // tab switching — the map colouring follows the active tab
+  d.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{
+    const k=t.dataset.tab;
+    d.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
+    d.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.dataset.pane===k));
+    if(treesOn) setTreeMode(k==='2'?'shade':'pet');
+  }));
+  d.querySelector('#treetog').addEventListener('change', e=> toggleTrees(e.target.checked,'pet'));
+  const stog=d.querySelector('#shadetog');
+  if(stog) stog.addEventListener('change', e=> toggleTrees(e.target.checked,'shade'));
+  // bar click -> show trees + filter to that genus (colour mode follows the tab)
+  d.querySelectorAll('.bar').forEach(el=> el.addEventListener('click', ()=>{
+    const g=+el.dataset.g; if(g===-2) return;          // genus not on the map layer
+    d.querySelectorAll('.bar').forEach(b=>b.classList.toggle('sel', b===el && g>=0));
+    desiredFilter=g;
+    const mode = el.closest('.tabpane')?.dataset.pane==='2' ? 'shade' : 'pet';
+    if(!treesOn) toggleTrees(true,mode);
+    else { setTreeMode(mode); treeLayer && treeLayer.setFilter(g); }
+  }));
+  return d;
+}
+
+let treeMode='pet';
+function toggleTrees(on, mode){
+  treesOn=on; if(mode) treeMode=mode;
+  if(on){
+    if(!treeLayer){ treeLayer=new TreeLayer(treeData); }
+    treeLayer.mode=treeMode;
+    treeLayer.addTo(map);
+    treeLayer.setFilter(desiredFilter);
+    if(+$('op').value>50){ overlay.setOpacity(0.5); $('op').value=50; $('opv').textContent='50%'; } // dim heat so dots read
+    if(map.getZoom()<14) map.flyTo([47.3782,8.540],14,{duration:0.8});
+  } else if(treeLayer){ map.removeLayer(treeLayer); }
+  syncTreeUI();
+}
+function setTreeMode(mode){ treeMode=mode; if(treeLayer){ treeLayer.mode=mode; treeLayer._redraw(); } syncTreeUI(); }
+function syncTreeUI(){
+  const pet=document.getElementById('treetog'), sh=document.getElementById('shadetog');
+  if(pet) pet.checked = treesOn && treeMode==='pet';
+  if(sh)  sh.checked  = treesOn && treeMode==='shade';
+}
+
+// click-to-identify a tree
+map.on('click', e=>{
+  if(!treesOn || !treeData || map.getZoom()<13) return;
+  const pc=e.containerPoint; let best=null,bd=12;
+  const b=map.getBounds(), d=treeData;
+  for(let i=0;i<d.lat.length;i++){
+    if(treeLayer.filterG>=0 && d.g[i]!==treeLayer.filterG) continue;
+    if(d.lat[i]<b.getSouth()||d.lat[i]>b.getNorth()||d.lng[i]<b.getWest()||d.lng[i]>b.getEast()) continue;
+    const p=map.latLngToContainerPoint([d.lat[i],d.lng[i]]);
+    const dist=Math.hypot(p.x-pc.x,p.y-pc.y);
+    if(dist<bd){ bd=dist; best=i; }
+  }
+  if(best!=null){
+    const gi=d.g[best], name=gi>=0?`${d.generaDe[gi]} <i>(${d.genera[gi]})</i>`:'unbekannt';
+    const cool=d.c[best]/100, rel = cool>=0 ? `<b>${cool.toFixed(1)} °C kühler</b>` : `<b>${(-cool).toFixed(1)} °C wärmer</b>`;
+    L.popup().setLatLng([d.lat[best],d.lng[best]]).setContent(
+      `<b>${name}</b><br>`+
+      `Gefühlte Temp. am Standort: <b>${(d.t[best]/10).toFixed(1)} °C</b> `+
+      `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${petColor(d.t[best]/10)};border:1px solid #999"></span><br>`+
+      `Standort ${rel} als der Umkreis (200 m)<br>`+
+      `Kronendurchmesser: ${d.cr[best]} m<br>`+
+      `Kühlpotenzial (Literatur): <b>${shadeWord(d.s?d.s[best]:0)}</b> `+
+      `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${shadeColor((d.s?d.s[best]:0)/100)};border:1px solid #999"></span>`
+      ).openOn(map);
+  }
+});
+
+// load analysis (small) immediately; points (2 MB) lazily on first toggle
+function initAnalysis(a){
+  analysis=a; setCmap(a.colormap);
+  const Tp=L.Control.extend({ options:{position:'bottomleft'}, onAdd(){ return buildTreePanel(); }});
+  new Tp().addTo(map);
+}
+if(window.__ANALYSIS__) initAnalysis(window.__ANALYSIS__);
+else fetch('treedata/tree_analysis.json').then(r=>r.json()).then(initAnalysis)
+       .catch(e=>console.warn('tree analysis not loaded', e));
+
+function ensurePoints(cb){
+  if(treeData) return cb();
+  if(window.__TREES__){ treeData=window.__TREES__; return cb(); }
+  // inject as <script> so it also works on file:// (fetch is blocked there)
+  const s=document.createElement('script'); s.src='treedata/trees_points.js';
+  s.onload=()=>{ treeData=window.__TREES__; cb(); };
+  s.onerror=()=> fetch('treedata/trees_points.json').then(r=>r.json()).then(d=>{ treeData=d; cb(); });
+  document.head.appendChild(s);
+}
+// wrap toggleTrees to lazy-load points
+const _toggle=toggleTrees;
+toggleTrees=function(on,mode){ if(on && !treeData){ ensurePoints(()=>_toggle(true,mode)); } else { _toggle(on,mode); } };
+</script>
+</body>
+</html>
