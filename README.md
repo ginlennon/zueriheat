@@ -1,5 +1,7 @@
 # Hitzekarte Zürich – zoombare Überlagerung
 
+**🌡️ Live-Demo: https://ginlennon.github.io/zueriheat/**
+
 Eine selbstständige Webseite, die die Zürcher Hitzekarte ("Gefühlte Temperatur")
 zoombar über eine offene Strassenkarte legt.
 
