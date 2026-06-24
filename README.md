@@ -27,6 +27,9 @@ ein kleiner **Schatten-Wegweiser** 🕶️.
   schieben/skalieren (wird im Browser gespeichert).
 - 🌳 **Bäume einblenden** (Panel unten links) und nach Gattung filtern; auf einen
   Baum klicken zeigt Details (Temperatur, Kühlung, Krone, Kühlpotenzial).
+- ❓ **Hilfe-Button** (oben rechts) mit Kurzanleitung — öffnet sich beim ersten Besuch automatisch.
+- 📱 **Mobil:** die Info-Boxen sind eingeklappt; **vom linken Rand einwischen** 👈 oder die
+  Knöpfe ⚙️ / 🌳 antippen, um sie als Schubladen einzublenden.
 
 ## 🌳 Die Baum-Analyse — drei Sichten
 

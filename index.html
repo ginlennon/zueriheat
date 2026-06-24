@@ -88,6 +88,56 @@
   .shrink { font-size:10.5px; color:#555; line-height:1.5; margin:4px 0; }
   .shrink b { color:#137; }
   .pill { display:inline-block; font-size:9.5px; background:#eef3f8; color:#356; border-radius:4px; padding:1px 5px; }
+
+  /* ===== mobile: left info-boxes become swipe-in drawers ===== */
+  .fab, .drawer-backdrop, .drawer-close { display:none; }
+  @media (max-width: 760px) {
+    /* both left panels (main controls + tree panel) → off-canvas drawers */
+    .leaflet-left .panel {
+      position:fixed; top:0; left:0; bottom:0; height:auto; max-height:100dvh;
+      width:86vw; max-width:340px; margin:0 !important; border-radius:0 14px 14px 0;
+      overflow-y:auto; -webkit-overflow-scrolling:touch; z-index:1200;
+      transform:translateX(-104%); transition:transform .25s ease;
+      box-shadow:2px 0 16px rgba(0,0,0,.35);
+    }
+    .leaflet-left .panel.drawer-open { transform:translateX(0); }
+    .tpanel { width:86vw !important; max-width:340px; }
+    .tpanel.collapsed .tbody { display:block; }   /* show full content inside drawer */
+    .tpanel h2 .caret { display:none; }
+
+    /* floating round buttons on the left edge */
+    .fab { display:flex; align-items:center; justify-content:center; position:fixed;
+      left:10px; z-index:1100; width:48px; height:48px; border-radius:50%; background:#fff;
+      box-shadow:0 2px 8px rgba(0,0,0,.35); border:1px solid #ddd; font-size:21px; cursor:pointer; }
+    .fab.ctrl { top:10px; }
+    .fab.tree { bottom:16px; }
+
+    .drawer-backdrop { display:block; position:fixed; inset:0; background:rgba(0,0,0,.32);
+      opacity:0; pointer-events:none; transition:opacity .2s; z-index:1150; }
+    .drawer-backdrop.show { opacity:1; pointer-events:auto; }
+
+    .drawer-close { display:block; position:sticky; top:4px; float:right; margin:-2px -2px 0 6px;
+      width:30px; height:30px; border:none; border-radius:50%; background:#eee; color:#333;
+      font-size:15px; line-height:30px; cursor:pointer; z-index:5; }
+  }
+
+  /* ===== help / "?" button + modal ===== */
+  .help-ctrl .help-btn { width:34px; height:34px; border-radius:50%; background:#fff;
+    border:1px solid #bbb; box-shadow:0 1px 4px rgba(0,0,0,.3); font:bold 17px/1 system-ui;
+    color:#333; cursor:pointer; }
+  .help-ctrl .help-btn:hover { background:#f2f2f2; }
+  .help-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none;
+    align-items:center; justify-content:center; z-index:2000; padding:16px; }
+  .help-overlay.show { display:flex; }
+  .help-card { background:#fff; border-radius:14px; max-width:440px; width:100%; max-height:86dvh;
+    overflow-y:auto; padding:18px 20px; box-shadow:0 10px 34px rgba(0,0,0,.45); position:relative;
+    font:13.5px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#222; }
+  .help-card h2 { margin:0 0 8px; font-size:17px; }
+  .help-card h3 { margin:13px 0 3px; font-size:12.5px; }
+  .help-card p { margin:5px 0; }
+  .help-card a { color:#1769aa; }
+  .help-x { position:absolute; top:10px; right:10px; border:none; background:#eee; color:#333;
+    border-radius:50%; width:30px; height:30px; font-size:15px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -143,7 +193,7 @@ L.control.layers(
   { 'Hell (CARTO)': cartoLight, 'OpenStreetMap': osm, 'swisstopo Farbe': swissColor,
     'swisstopo Grau': swissGrey, 'Satellit (Esri)': esriSat },
   { 'Hitzekarte': overlay },
-  { position: 'topright', collapsed: false }
+  { position: 'topright', collapsed: window.matchMedia('(max-width:760px)').matches }
 ).addTo(map);
 
 /* ================= Control panel ================= */
@@ -586,6 +636,79 @@ function ensurePoints(cb){
 // wrap toggleTrees to lazy-load points
 const _toggle=toggleTrees;
 toggleTrees=function(on,mode){ if(on && !treeData){ ensurePoints(()=>_toggle(true,mode)); } else { _toggle(on,mode); } };
+
+/* =====================================================================
+   Help "?" modal  +  mobile swipe-in drawers
+   ===================================================================== */
+(function(){
+  // ---- Help modal ----
+  const overlay=document.createElement('div'); overlay.className='help-overlay';
+  overlay.innerHTML=`<div class="help-card">
+    <button class="help-x" aria-label="schliessen">✕</button>
+    <h2>🌡️🌳 Züriheat — kurz erklärt</h2>
+    <p>Zürichs <b>Hitzekarte</b> („gefühlte Temperatur") über einer offenen Strassenkarte —
+       plus die <b>Stadtbäume</b> und wie sie kühlen.</p>
+    <h3>🗺️ Karte</h3>
+    <p>🔍 Zoomen & schwenken. Der <b>Deckkraft</b>-Regler steuert die Hitze-Ebene,
+       <b>Grundkarte</b> (oben rechts) wechselt den Hintergrund, <b>Ausrichten</b> verschiebt die
+       Hitzekarte pixelgenau auf die Strassen.</p>
+    <h3>🌳 Bäume</h3>
+    <p>Im Panel „Welche Bäume kühlen?" einschalten — drei Sichten:
+       <b>📍 Standort</b> (gemessene Hitze am Baum), <b>🧪 Art-Effekt</b> (standortbereinigt) und
+       <b>🌿 Schatten</b> (welche Arten von Natur aus am meisten kühlen — dein Schatten-Wegweiser 🕶️).
+       Auf einen Baum tippen zeigt Details.</p>
+    <h3>📱 Auf dem Handy</h3>
+    <p>Die Info-Boxen sind eingeklappt: <b>vom linken Rand einwischen</b> 👈 oder die runden
+       Knöpfe ⚙️ / 🌳 tippen. Antippen ausserhalb schliesst wieder.</p>
+    <p style="color:#777;font-size:11.5px;margin-top:12px">⚠︎ Hitzewerte aus einem Rasterbild
+       geschätzt (±1–2 °C, relativ). Daten: Tages-Anzeiger & Baumkataster Stadt Zürich (OGD).
+       — <a href="https://github.com/ginlennon/zueriheat" target="_blank" rel="noopener">Quellcode & Details ↗</a></p>
+  </div>`;
+  document.body.appendChild(overlay);
+  const openHelp=()=>overlay.classList.add('show');
+  const closeHelp=()=>overlay.classList.remove('show');
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) closeHelp(); });
+  overlay.querySelector('.help-x').addEventListener('click', closeHelp);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeHelp(); });
+
+  const Help=L.Control.extend({ options:{position:'topright'}, onAdd(){
+    const d=L.DomUtil.create('div','help-ctrl');
+    d.innerHTML='<button class="help-btn" title="Hilfe / Info" aria-label="Hilfe">?</button>';
+    L.DomEvent.disableClickPropagation(d);
+    d.querySelector('.help-btn').addEventListener('click', openHelp);
+    return d;
+  }});
+  new Help().addTo(map);
+  try{ if(!localStorage.getItem('zueriheat-help-seen')){ openHelp(); localStorage.setItem('zueriheat-help-seen','1'); } }catch(e){}
+
+  // ---- Mobile drawers ----
+  const backdrop=document.createElement('div'); backdrop.className='drawer-backdrop'; document.body.appendChild(backdrop);
+  const fabC=document.createElement('button'); fabC.className='fab ctrl'; fabC.title='Karten-Steuerung'; fabC.textContent='⚙️';
+  const fabT=document.createElement('button'); fabT.className='fab tree'; fabT.title='Bäume & Analyse'; fabT.textContent='🌳';
+  document.body.appendChild(fabC); document.body.appendChild(fabT);
+  const P=()=>({ ctrl:document.querySelector('.leaflet-left .panel:not(.tpanel)'),
+                 tree:document.querySelector('.leaflet-left .tpanel') });
+  function addClose(panel){ if(!panel||panel.querySelector('.drawer-close'))return;
+    const b=document.createElement('button'); b.className='drawer-close'; b.textContent='✕';
+    b.addEventListener('click',closeD); panel.insertBefore(b,panel.firstChild); }
+  function closeD(){ const p=P(); [p.ctrl,p.tree].forEach(el=>el&&el.classList.remove('drawer-open')); backdrop.classList.remove('show'); }
+  function openD(which){ const p=P(); const t=which==='tree'?p.tree:p.ctrl; if(!t)return;
+    const was=t.classList.contains('drawer-open'); closeD();
+    if(!was){ if(which==='tree') t.classList.remove('collapsed'); addClose(t);
+      t.classList.add('drawer-open'); backdrop.classList.add('show'); t.scrollTop=0; } }
+  fabC.addEventListener('click',()=>openD('ctrl'));
+  fabT.addEventListener('click',()=>openD('tree'));
+  backdrop.addEventListener('click',closeD);
+
+  const MQ=()=>matchMedia('(max-width:760px)').matches;
+  let sx=null,sy=null,edge=false;
+  addEventListener('touchstart',e=>{ if(!MQ())return; const t=e.touches[0]; sx=t.clientX; sy=t.clientY; edge=sx<26; },{passive:true});
+  addEventListener('touchmove',e=>{ if(!MQ()||sx==null)return; const t=e.touches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)<45||Math.abs(dy)>Math.abs(dx))return;
+    if(dx>0&&edge){ openD('ctrl'); sx=null; }
+    else if(dx<0&&backdrop.classList.contains('show')){ closeD(); sx=null; } },{passive:true});
+  addEventListener('touchend',()=>{ sx=null; });
+})();
 </script>
 </body>
 </html>
